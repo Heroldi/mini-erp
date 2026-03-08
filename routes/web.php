@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\ProdutoController;
+use App\Http\Controllers\PedidoController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -36,6 +37,16 @@ Route::middleware('auth')->group(function () {
     Route::patch('/produtos/{produto}', [ProdutoController::class, 'update'])->name('produtos.update');
 
     Route::delete('/produtos/{produto}', [ProdutoController::class, 'destroy'])->name('produtos.destroy');
+
+    Route::get('/pedidos', [PedidoController::class, 'index'])->name('pedidos.index');
+    Route::get('/pedidos/create', [PedidoController::class, 'create'])->name('pedidos.create');
+    Route::post('/pedidos', [PedidoController::class, 'store'])->name('pedidos.store');
+    Route::get('/pedidos/{pedido}', [PedidoController::class, 'show'])->name('pedidos.show');
+
+    Route::get('/pedidos/{pedido}/edit', [PedidoController::class, 'edit'])->name('pedidos.edit');
+    Route::patch('/pedidos/{pedido}', [PedidoController::class, 'update'])->name('pedidos.update');
+
+    Route::delete('/pedidos/{pedido}', [PedidoController::class, 'destroy'])->name('pedidos.destroy');
 });
 
 require __DIR__.'/auth.php';
