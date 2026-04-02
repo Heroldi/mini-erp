@@ -2,176 +2,147 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Endereco;
+use App\Models\Pedido;
+use App\Models\Produto;
+use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Models\Pedido;
-use App\Models\Cliente;
-use App\Models\Produto;
-use App\Models\ItemPedido;
+use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 
 class PedidoController extends Controller
 {
-    public function index()
+    public function index(Request $request): View
     {
-        $clientes = Cliente::orderBy('nome')->get();
+        $authUser = $request->user();
 
-        $clienteId = request('cliente_id'); // vem do GET ?cliente_id=...
-
-        $pedidosQuery = Pedido::with('cliente')
+        $pedidosQuery = Pedido::with('user')
             ->withCount('itens')
-            ->orderByDesc('data_pedido');
+            ->orderByDesc('data_pedido')
+            ->orderByDesc('id');
 
-        if ($clienteId) {
-            $pedidosQuery->where('cliente_id', $clienteId);
+        $clientes = collect();
+        $userId = null;
+        $status = $request->string('status')->value();
+        $nome = $request->string('nome')->value();
+        $cpf = $request->string('cpf')->value();
+
+        if ($authUser->isCliente()) {
+            $pedidosQuery->where('user_id', $authUser->id);
+        } elseif ($authUser->isInterno()) {
+            $clientes = User::whereHas('role', function ($query) {
+                    $query->where('nome', 'cliente');
+                })
+                ->orderBy('name')
+                ->get();
+
+            $userId = $request->integer('user_id') ?: null;
+
+            if ($userId) {
+                $pedidosQuery->where('user_id', $userId);
+            }
+
+            if ($status) {
+                $pedidosQuery->where('status', $status);
+            }
+
+            if ($nome) {
+                $pedidosQuery->whereHas('user', function ($query) use ($nome) {
+                    $query->where('name', 'like', '%' . $nome . '%');
+                });
+            }
+
+            if ($cpf) {
+                $pedidosQuery->whereHas('user', function ($query) use ($cpf) {
+                    $query->where('cpf', 'like', '%' . $cpf . '%');
+                });
+            }
+        } else {
+            abort(403);
         }
 
         $pedidos = $pedidosQuery
             ->paginate(10)
-            ->appends(request()->query()); // mantém o filtro na paginação
+            ->appends($request->query());
 
-        return view('pedidos.index', compact('pedidos', 'clientes', 'clienteId'));
+        return view('pedidos.index', compact('pedidos', 'clientes', 'userId', 'status', 'nome', 'cpf'));
     }
 
-    public function create()
+    public function show(Request $request, Pedido $pedido): View
     {
-        $clientes = Cliente::orderBy('nome')->get();
-        $produtos = Produto::orderBy('nome')->get();
+        $authUser = $request->user();
 
-        return view('pedidos.create', compact('clientes', 'produtos'));
-    }
+        $this->garantirQuePodeVisualizar($authUser, $pedido);
 
-    public function store(Request $request)
-    {
-        $dados = $request->validate([
-        'cliente_id'  => ['required', 'exists:clientes,id'],
-        'data_pedido' => ['required', 'date'],
-        'status'      => ['required', 'string', 'max:50'],
-
-        // itens obrigatórios
-        'itens' => ['required', 'array', 'min:1'],
-        'itens.*.produto_id' => ['required', 'exists:produtos,id', 'distinct'],
-        'itens.*.quantidade' => ['required', 'integer', 'min:1'],
-        ]);
-
-        DB::transaction(function () use ($dados) {
-            $pedido = Pedido::create([
-                'cliente_id'  => $dados['cliente_id'],
-                'data_pedido' => $dados['data_pedido'],
-                'status'      => $dados['status'],
-                'valor_total' => 0,
-            ]);
-
-            $produtoIds = collect($dados['itens'])->pluck('produto_id')->unique()->values();
-            $produtos = Produto::whereIn('id', $produtoIds)->get()->keyBy('id');
-
-            $total = 0;
-
-            foreach ($dados['itens'] as $item) {
-                $produto = $produtos[$item['produto_id']];
-                $quantidade = (int) $item['quantidade'];
-
-                $precoUnitario = (float) $produto->preco;
-                $subtotal = round($precoUnitario * $quantidade, 2);
-
-                ItemPedido::create([
-                    'pedido_id'      => $pedido->id,
-                    'produto_id'     => $produto->id,
-                    'quantidade'     => $quantidade,
-                    'preco_unitario' => $precoUnitario,
-                    'subtotal'       => $subtotal,
-                ]);
-
-                $total += $subtotal;
-            }
-
-            $pedido->update(['valor_total' => $total]);
-        });
-
-        return redirect()
-            ->route('pedidos.index')
-            ->with('success', 'Pedido criado com sucesso.');
-    }
-
-    public function show(Pedido $pedido)
-    {
-        $pedido->load(['cliente', 'itens.produto']);
+        $pedido->load(['user', 'itens.produto']);
 
         return view('pedidos.show', compact('pedido'));
     }
 
-    public function edit(Pedido $pedido)
+    public function cancel(Request $request, Pedido $pedido): RedirectResponse
     {
-        $clientes = Cliente::orderBy('nome')->get();
-        $produtos = Produto::orderBy('nome')->get();
+        $authUser = $request->user();
 
-        // importante: carregar itens e produto pra preencher a tela
-        $pedido->load(['itens', 'itens.produto']);
+        $this->garantirQuePodeCancelar($authUser, $pedido);
 
-        return view('pedidos.edit', compact('pedido', 'clientes', 'produtos'));
-    }
-
-    public function update(Request $request, Pedido $pedido)
-    {
-        $dados = $request->validate([
-        'cliente_id'  => ['required', 'exists:clientes,id'],
-        'data_pedido' => ['required', 'date'],
-        'status'      => ['required', 'string', 'max:50'],
-
-        'itens' => ['required', 'array', 'min:1'],
-        'itens.*.produto_id' => ['required', 'exists:produtos,id', 'distinct'],
-        'itens.*.quantidade' => ['required', 'integer', 'min:1'],
+        $pedido->update([
+            'status' => 'cancelado',
         ]);
-
-        DB::transaction(function () use ($pedido, $dados) {
-            // atualiza o cabeçalho do pedido
-            $pedido->update([
-                'cliente_id'  => $dados['cliente_id'],
-                'data_pedido' => $dados['data_pedido'],
-                'status'      => $dados['status'],
-            ]);
-
-            // remove os itens antigos para salvar os atuais
-            $pedido->itens()->delete();
-
-            // busca todos os produtos envolvidos de uma vez
-            $produtoIds = collect($dados['itens'])->pluck('produto_id')->unique()->values();
-            $produtos = Produto::whereIn('id', $produtoIds)->get()->keyBy('id');
-
-            // recria os itens e recalcula total
-            $total = 0;
-
-            foreach ($dados['itens'] as $item) {
-                $produto = $produtos[$item['produto_id']];
-                $quantidade = (int) $item['quantidade'];
-
-                $precoUnitario = (float) $produto->preco;
-                $subtotal = round($precoUnitario * $quantidade, 2);
-
-                ItemPedido::create([
-                    'pedido_id'      => $pedido->id,
-                    'produto_id'     => $produto->id,
-                    'quantidade'     => $quantidade,
-                    'preco_unitario' => $precoUnitario,
-                    'subtotal'       => $subtotal,
-                ]);
-
-                $total += $subtotal;
-            }
-
-            $pedido->update(['valor_total' => $total]);
-        });
 
         return redirect()
             ->route('pedidos.show', $pedido)
-            ->with('success', 'Pedido atualizado com sucesso.');
+            ->with('success', 'Pedido cancelado com sucesso.');
     }
 
-    public function destroy(Pedido $pedido)
+    public function finalize(Request $request, Pedido $pedido): RedirectResponse
     {
-        $pedido->delete();
+        $authUser = $request->user();
+
+        $this->garantirQuePodeFinalizar($authUser, $pedido);
+
+        $pedido->update([
+            'status' => 'finalizado',
+        ]);
 
         return redirect()
-            ->route('pedidos.index')
-            ->with('success', 'Pedido removido com sucesso.');
+            ->route('pedidos.show', $pedido)
+            ->with('success', 'Pedido finalizado com sucesso.');
+    }
+
+    private function garantirQuePodeVisualizar(User $authUser, Pedido $pedido): void
+    {
+        if ($authUser->isInterno()) {
+            return;
+        }
+
+        if ($authUser->isCliente() && $pedido->user_id === $authUser->id) {
+            return;
+        }
+
+        abort(403);
+    }
+
+    private function garantirQuePodeCancelar(User $authUser, Pedido $pedido): void
+    {
+        $this->garantirQuePodeVisualizar($authUser, $pedido);
+
+        if ($pedido->status !== 'aberto') {
+            abort(403, 'Somente pedidos abertos podem ser cancelados.');
+        }
+    }
+
+    private function garantirQuePodeFinalizar(User $authUser, Pedido $pedido): void
+    {
+        $this->garantirQuePodeVisualizar($authUser, $pedido);
+
+        if (! $authUser->isInterno()) {
+            abort(403, 'Somente a equipe pode finalizar pedidos.');
+        }
+
+        if ($pedido->status !== 'aberto') {
+            abort(403, 'Somente pedidos abertos podem ser finalizados.');
+        }
     }
 }

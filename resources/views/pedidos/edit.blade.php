@@ -6,8 +6,6 @@
     </x-slot>
 
     @php
-        // Se voltou de validação, usa old('itens').
-        // Senão, monta a lista a partir dos itens do pedido.
         $itensForm = old('itens');
 
         if (!$itensForm) {
@@ -19,7 +17,6 @@
                 ->toArray();
         }
 
-        // Garante ao menos 1 linha na tela
         if (!is_array($itensForm) || count($itensForm) === 0) {
             $itensForm = [['produto_id' => '', 'quantidade' => 1]];
         }
@@ -42,17 +39,17 @@
 
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
                         <div>
-                            <label for="cliente_id" class="block mb-1">Cliente</label>
-                            <select name="cliente_id" id="cliente_id" class="w-full border rounded px-3 py-2">
+                            <label for="user_id" class="block mb-1">Cliente</label>
+                            <select name="user_id" id="user_id" class="w-full border rounded px-3 py-2">
                                 <option value="">Selecione</option>
-                                @foreach($clientes as $cliente)
-                                    <option value="{{ $cliente->id }}"
-                                        {{ old('cliente_id', $pedido->cliente_id) == $cliente->id ? 'selected' : '' }}>
-                                        {{ $cliente->nome }}
+                                @foreach($users as $user)
+                                    <option value="{{ $user->id }}"
+                                        {{ old('user_id', $pedido->user_id) == $user->id ? 'selected' : '' }}>
+                                        {{ $user->name }}
                                     </option>
                                 @endforeach
                             </select>
-                            @error('cliente_id')
+                            @error('user_id')
                                 <div class="text-red-600 text-sm mt-1">{{ $message }}</div>
                             @enderror
                         </div>
@@ -243,7 +240,6 @@
                 const clone = template.cloneNode(true);
                 clone.removeAttribute('id');
 
-                // garante defaults
                 const sel = clone.querySelector('.item-produto');
                 const qty = clone.querySelector('.item-quantidade');
                 if (sel) sel.value = '';
@@ -263,7 +259,6 @@
                 reindex();
             });
 
-            // Antes de enviar, garante nomes certos e pelo menos 1 produto selecionado
             updateForm.addEventListener('submit', (e) => {
                 reindex();
 
@@ -273,7 +268,6 @@
                 }
             });
 
-            // Ao carregar
             reindex();
         })();
     </script>

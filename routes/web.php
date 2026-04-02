@@ -1,52 +1,107 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ClienteController;
-use App\Http\Controllers\ProdutoController;
 use App\Http\Controllers\PedidoController;
+use App\Http\Controllers\EnderecoController;
+use App\Http\Controllers\ProdutoController;
+use App\Http\Controllers\ProfileCompletionController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ForcePasswordChangeController;
+use App\Http\Controllers\ClienteManagementController;
+use App\Http\Controllers\ClienteEnderecoManagementController;
+use App\Http\Controllers\ClientePedidoManagementController;
+use App\Http\Controllers\CompraController;
+use App\Http\Controllers\EquipeManagementController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::middleware(['auth', 'active'])->group(function () {
+    Route::get('/trocar-senha-obrigatoria', [ForcePasswordChangeController::class, 'edit'])
+        ->name('password.force.edit');
 
-Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::patch('/trocar-senha-obrigatoria', [ForcePasswordChangeController::class, 'update'])
+        ->name('password.force.update');
+});
 
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+Route::middleware(['auth', 'active', 'password.changed'])->scopeBindings()->group(function () {
+        Route::get('/completar-cadastro', [ProfileCompletionController::class, 'edit'])
+            ->name('profile.complete');
 
-    Route::get('/clientes', [ClienteController::class, 'index'])->name('clientes.index');
-    Route::get('/clientes/create', [ClienteController::class, 'create'])->name('clientes.create');
-    Route::post('/clientes', [ClienteController::class, 'store'])->name('clientes.store');
+        Route::post('/completar-cadastro', [ProfileCompletionController::class, 'update'])
+            ->name('profile.complete.store');
+    });
 
-    Route::get('/clientes/{cliente}/edit', [ClienteController::class, 'edit'])->name('clientes.edit');
-    Route::patch('/clientes/{cliente}', [ClienteController::class, 'update'])->name('clientes.update');
+Route::middleware(['auth', 'active', 'profile.complete', 'password.changed'])->group(function () {
+    Route::get('/dashboard', function () {
+        return view('dashboard');
+    })->name('dashboard');
 
-    Route::delete('/clientes/{cliente}', [ClienteController::class, 'destroy'])->name('clientes.destroy');
+    Route::singleton('profile', ProfileController::class)->only(['edit', 'update']);
 
-    Route::get('/produtos', [ProdutoController::class, 'index'])->name('produtos.index');
-    Route::get('/produtos/create', [ProdutoController::class, 'create'])->name('produtos.create');
-    Route::post('/produtos', [ProdutoController::class, 'store'])->name('produtos.store');
+    Route::resource('pedidos', PedidoController::class)->except(['create', 'store', 'destroy']);
 
-    Route::get('/produtos/{produto}/edit', [ProdutoController::class, 'edit'])->name('produtos.edit');
-    Route::patch('/produtos/{produto}', [ProdutoController::class, 'update'])->name('produtos.update');
+    Route::patch('pedidos/{pedido}/cancelar', [PedidoController::class, 'cancel'])
+        ->name('pedidos.cancel');
+           
+    Route::patch('pedidos/{pedido}/finalizar', [PedidoController::class, 'finalize'])
+        ->name('pedidos.finalize');
 
-    Route::delete('/produtos/{produto}', [ProdutoController::class, 'destroy'])->name('produtos.destroy');
+    Route::get('/comprar', [CompraController::class, 'index'])
+        ->name('compras.index');
 
-    Route::get('/pedidos', [PedidoController::class, 'index'])->name('pedidos.index');
-    Route::get('/pedidos/create', [PedidoController::class, 'create'])->name('pedidos.create');
-    Route::post('/pedidos', [PedidoController::class, 'store'])->name('pedidos.store');
-    Route::get('/pedidos/{pedido}', [PedidoController::class, 'show'])->name('pedidos.show');
+    Route::post('/comprar/checkout', [CompraController::class, 'prepareCheckout'])
+        ->name('compras.prepare-checkout');
 
-    Route::get('/pedidos/{pedido}/edit', [PedidoController::class, 'edit'])->name('pedidos.edit');
-    Route::patch('/pedidos/{pedido}', [PedidoController::class, 'update'])->name('pedidos.update');
+    Route::get('/comprar/checkout', [CompraController::class, 'checkout'])
+        ->name('compras.checkout');
 
-    Route::delete('/pedidos/{pedido}', [PedidoController::class, 'destroy'])->name('pedidos.destroy');
+    Route::post('/comprar', [CompraController::class, 'store'])
+        ->name('compras.store');
+
+    Route::resource('enderecos', EnderecoController::class)->only(['index', 'store', 'update']);
+
+    Route::patch('enderecos/{endereco}/ativo', [EnderecoController::class, 'toggleAtivo'])
+        ->name('enderecos.toggle-ativo');
+
+    Route::patch('enderecos/{endereco}/principal', [EnderecoController::class, 'setPrincipal'])
+        ->name('enderecos.principal');
+
+    Route::middleware('role:atendente,admin')->group(function () {
+
+        Route::resource('produtos', ProdutoController::class)->except(['show', 'destroy']);
+
+        Route::patch('produtos/{produto}/toggle-ativo', [ProdutoController::class, 'toggleAtivo'])
+            ->name('produtos.toggle-ativo');
+
+        Route::resource('clientes', ClienteManagementController::class)
+            ->parameters(['clientes' => 'usuario'])
+            ->except(['show', 'destroy']);
+
+        Route::resource('equipe', EquipeManagementController::class)
+        ->parameters(['equipe' => 'usuario'])
+        ->except(['show', 'destroy']);
+
+        Route::prefix('clientes/{usuario}')->name('clientes.')->group(function () {
+
+                Route::resource('enderecos', ClienteEnderecoManagementController::class)->only(['index', 'store', 'update']);
+
+                Route::patch('enderecos/{endereco}/toggle-ativo', [ClienteEnderecoManagementController::class, 'toggleAtivo'])
+                    ->name('enderecos.toggle-ativo');
+
+                Route::patch('enderecos/{endereco}/principal', [ClienteEnderecoManagementController::class, 'setPrincipal'])
+                    ->name('enderecos.set-principal');
+
+                Route::resource('pedidos', ClientePedidoManagementController::class)->except(['edit', 'update', 'destroy']);
+
+                Route::patch('pedidos/{pedido}/finalizar', [ClientePedidoManagementController::class, 'finalize'])
+                    ->name('pedidos.finalize');
+
+                Route::patch('pedidos/{pedido}/cancelar', [ClientePedidoManagementController::class, 'cancel'])
+                    ->name('pedidos.cancel');
+        });
+    });
 });
 
 require __DIR__.'/auth.php';

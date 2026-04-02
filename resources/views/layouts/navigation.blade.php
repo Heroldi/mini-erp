@@ -13,24 +13,42 @@
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                        {{ __('Dashboard') }}
+                        {{ __('Home') }}
                     </x-nav-link>
                 </div>
+                 @if (auth()->user()?->isCliente())
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('clientes.index')" :active="request()->routeIs('clientes.*')">
-                       Clientes
+                    <x-nav-link :href="route('compras.index')" :active="request()->routeIs('compras.*')">
+                       Comprar Agora
                     </x-nav-link>
                 </div>
+                @endif
+                @if (auth()->user()?->isAtendente() || auth()->user()?->isAdmin())
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('produtos.index')" :active="request()->routeIs('produtos.*')">
                        Produtos
                     </x-nav-link>
                 </div>
+                @endif
+                @if (auth()->user()?->isAtendente() || auth()->user()?->isAdmin())
+                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                    <x-nav-link :href="route('clientes.index')" :active="request()->routeIs('clientes.*')">
+                       Clientes
+                    </x-nav-link>
+                </div>
+                @endif
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <x-nav-link :href="route('pedidos.index')" :active="request()->routeIs('pedidos.*')">
                        Pedidos
                     </x-nav-link>
                 </div>
+                @if (auth()->user()?->isAdmin())
+                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                    <x-nav-link :href="route('equipe.index')" :active="request()->routeIs('equipe.*')">
+                       Gerenciar Equipe
+                    </x-nav-link>
+                </div>
+                @endif
             </div>
 
             <!-- Settings Dropdown -->
@@ -49,10 +67,17 @@
                     </x-slot>
 
                     <x-slot name="content">
+                        @if (auth()->user()?->isCliente())
                         <x-dropdown-link :href="route('profile.edit')">
-                            {{ __('Profile') }}
+                            {{ __('Perfil') }}
                         </x-dropdown-link>
+                         @endif
 
+                        @if (auth()->user()?->isCliente())
+                            <x-dropdown-link :href="route('enderecos.index')">
+                                {{ __('Endereços') }}
+                            </x-dropdown-link>
+                        @endif
                         <!-- Authentication -->
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf

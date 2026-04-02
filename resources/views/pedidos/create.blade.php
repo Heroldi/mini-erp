@@ -13,16 +13,16 @@
                     @csrf
 
                     <div class="mb-4">
-                        <label for="cliente_id" class="block mb-1">Cliente</label>
-                        <select name="cliente_id" id="cliente_id" class="w-full border rounded px-3 py-2">
+                        <label for="user_id" class="block mb-1">Cliente</label>
+                        <select name="user_id" id="user_id" class="w-full border rounded px-3 py-2">
                             <option value="">Selecione</option>
-                            @foreach($clientes as $cliente)
-                                <option value="{{ $cliente->id }}" {{ old('cliente_id') == $cliente->id ? 'selected' : '' }}>
-                                    {{ $cliente->nome }}
+                            @foreach($users as $user)
+                                <option value="{{ $user->id }}" {{ old('user_id') == $user->id ? 'selected' : '' }}>
+                                    {{ $user->name }}
                                 </option>
                             @endforeach
                         </select>
-                        @error('cliente_id')
+                        @error('user_id')
                             <div class="text-red-600 text-sm mt-1">{{ $message }}</div>
                         @enderror
                     </div>
@@ -181,7 +181,6 @@
                             reindex();
                         });
 
-                        // garante nomes corretos ao carregar
                         reindex();
                     })();
                     </script>

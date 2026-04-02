@@ -21,6 +21,12 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'cpf',
+        'data_nascimento',
+        'telefone',
+        'ativo',
+        'role_id',
+        'must_change_password',
     ];
 
     /**
@@ -43,6 +49,44 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'data_nascimento' => 'date',
+            'ativo' => 'boolean',
+            'must_change_password' => 'boolean',
         ];
+    }
+
+    public function pedidos()
+    {
+        return $this->hasMany(Pedido::class);
+    }
+
+    public function enderecos()
+    {
+        return $this->hasMany(Endereco::class);
+    }
+
+    public function role()
+    {
+        return $this->belongsTo(Role::class);
+    }
+
+    public function isCliente(): bool
+    {
+        return $this->role?->nome === 'cliente';
+    }
+
+    public function isAtendente(): bool
+    {
+        return $this->role?->nome === 'atendente';
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role?->nome === 'admin';
+    }
+
+    public function isInterno(): bool
+    {
+        return $this->isAtendente() || $this->isAdmin();
     }
 }
