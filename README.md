@@ -277,8 +277,8 @@ Listagem de produtos com controle de status (ativo/inativo), edição e organiza
 ## Instalação e execução
 
 ```bash
-git clone URL_DO_REPOSITORIO
-cd NOME_DO_PROJETO
+git clone https://github.com/Heroldi/mini-erp.git
+cd mini-erp
 composer install
 npm install
 cp .env.example .env
